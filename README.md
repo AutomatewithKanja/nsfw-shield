@@ -17,6 +17,7 @@ This project aggregates domains from trusted public sources, validates update sa
   - `hate_speech` *(currently empty source list)*
 - **Safety checks** to prevent broken or catastrophic list shrinkage
 - **Deterministic JSON signing** using HMAC-SHA256
+- **Signing key loaded from an environment variable or GitHub Actions secret**
 - **Version tracking** with `scripts/version.txt`
 - **Change logging** in `scripts/history.log`
 
@@ -39,17 +40,19 @@ This project aggregates domains from trusted public sources, validates update sa
 
 The generator script (`scripts/generate_blocklist.py`) performs the following:
 
-1. Loads previous blocklist/version if available
-2. Fetches domains from configured source URLs
-3. Parses host-style and domain-only formats
-4. Limits domains per category (`MAX_DOMAINS_PER_CATEGORY`)
-5. Aborts if:
+1. Loads the HMAC signing secret from `NSFW_SHIELD_HMAC_SECRET`
+2. Loads previous blocklist/version if available
+3. Fetches domains from configured source URLs
+4. Parses host-style and domain-only formats
+5. Limits domains per category (`MAX_DOMAINS_PER_CATEGORY`)
+6. Aborts if:
+   - the signing secret is missing
    - any source fetch fails
-   - total domains fall below minimum threshold
-   - total domains shrink too aggressively compared to previous version
-6. Skips version bump if there are no domain changes
-7. Signs canonicalized domain payload with HMAC-SHA256
-8. Writes:
+   - total domains fall below the minimum threshold
+   - total domains shrink too aggressively compared to the previous version
+7. Skips version bump if there are no domain changes
+8. Signs canonicalized domain payload with HMAC-SHA256
+9. Writes:
    - `scripts/blocklist.json`
    - `scripts/version.txt`
    - `scripts/history.log` (newly added domains only)
@@ -86,6 +89,24 @@ Install dependencies:
 pip install -r scripts/requirements.txt
 ```
 
+### Set the Signing Secret
+
+The generator requires an HMAC signing secret. Set it as an environment variable before running the script.
+
+Linux/macOS:
+
+```bash
+export NSFW_SHIELD_HMAC_SECRET="your-local-development-secret"
+```
+
+Windows PowerShell:
+
+```powershell
+$env:NSFW_SHIELD_HMAC_SECRET="your-local-development-secret"
+```
+
+Use a private value that is not committed to the repository.
+
 ### Generate Blocklist Locally
 
 ```bash
@@ -93,6 +114,7 @@ python scripts/generate_blocklist.py
 ```
 
 Artifacts updated in `scripts/`:
+
 - `blocklist.json`
 - `version.txt`
 - `history.log` (if new domains were added)
@@ -103,9 +125,26 @@ Workflow file: `.github/workflows/update_blocklist.yml`
 
 - Runs **daily at `21:00 UTC`** (`cron: 0 21 * * *`)
 - Can also be run manually from the Actions tab
+- Reads the signing key from the `NSFW_SHIELD_HMAC_SECRET` GitHub Actions secret
 - Commits and pushes updates only when `scripts/` has changes
 - Commit message format:
   - `Auto-update blocklist (v<version>)`
+
+## GitHub Actions Secret Setup
+
+Before the scheduled workflow can generate signed blocklists, add this repository secret:
+
+```text
+NSFW_SHIELD_HMAC_SECRET
+```
+
+In GitHub, go to:
+
+```text
+Repository Settings → Secrets and variables → Actions → New repository secret
+```
+
+Set the secret name to `NSFW_SHIELD_HMAC_SECRET` and use a strong private value.
 
 ## Data Sources
 
@@ -119,11 +158,9 @@ Current upstream feeds include:
 
 ## Security Note
 
-The generated file includes an HMAC signature for tamper detection.  
-If you consume this list in production, verify the signature before applying updates.
+The generated file includes an HMAC signature for tamper detection. If you consume this list in production, verify the signature before applying updates.
 
-> **Important:** the signing key is currently hardcoded in the script.  
-> For production-grade security, move the key to a secure secret store or CI secret and avoid committing secrets in source control.
+The signing key is not stored in the source code. It should be provided through an environment variable locally and through a GitHub Actions secret in CI.
 
 ## Known Limitations
 
@@ -137,5 +174,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Disclaimer
 
-This blocklist is provided as-is. Upstream sources may change quality, accuracy, and coverage over time.  
-Always test and validate before deploying to production environments.
+This blocklist is provided as-is. Upstream sources may change quality, accuracy, and coverage over time. Always test and validate before deploying to production environments.
