@@ -9,7 +9,7 @@ import sys
 
 # Configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-HMAC_SECRET = "nsfw-shield-blocklist-signing-key-2026"
+HMAC_SECRET = os.environ.get("NSFW_SHIELD_HMAC_SECRET")
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, "blocklist.json")
 VERSION_FILE = os.path.join(SCRIPT_DIR, "version.txt")
 HISTORY_FILE = os.path.join(SCRIPT_DIR, "history.log")
@@ -41,6 +41,14 @@ def _is_ip(token):
         return True
     except ValueError:
         return False
+
+def get_hmac_secret():
+    """Load the HMAC signing secret from an environment variable."""
+    if not HMAC_SECRET:
+        print("Missing required environment variable: NSFW_SHIELD_HMAC_SECRET")
+        print("Set it locally or add it as a GitHub Actions secret before generating the blocklist.")
+        sys.exit(1)
+    return HMAC_SECRET
 
 def fetch_domains(url):
     """Simple parser for host-style files."""
@@ -74,6 +82,8 @@ def fetch_domains(url):
         return [], str(e)
 
 def generate():
+    signing_secret = get_hmac_secret()
+
     # 1. Load current version and old domains for comparison
     version = 1
     old_domains = set()
@@ -166,7 +176,7 @@ def generate():
 
     # 4. Generate HMAC Signature
     signature = hmac.new(
-        HMAC_SECRET.encode(),
+        signing_secret.encode(),
         domains_json_str.encode(),
         hashlib.sha256
     ).hexdigest()
