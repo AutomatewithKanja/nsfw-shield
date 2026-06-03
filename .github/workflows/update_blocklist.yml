@@ -21,6 +21,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sync with latest main
+        run: git pull --ff-only origin main
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -43,7 +46,6 @@ jobs:
           # Only commit if there are changes
           if [ -n "$(git status --porcelain scripts/)" ]; then
             git commit -m "Auto-update blocklist (v$(cat scripts/version.txt))"
-            git pull --rebase origin main
             git push
           else
             echo "No changes to commit"
