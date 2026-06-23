@@ -22,7 +22,11 @@ jobs:
           fetch-depth: 0
 
       - name: Sync with latest main
-        run: git pull --ff-only origin main
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git fetch origin main
+          git rebase --autostash origin/main
 
       - name: Set up Python
         uses: actions/setup-python@v5
